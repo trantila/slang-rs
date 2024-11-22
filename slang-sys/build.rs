@@ -1,5 +1,5 @@
-use std::fs;
 use bindgen::Formatter;
+use std::fs;
 
 fn generate_bindings() {
     fs::create_dir_all("gen").unwrap();
@@ -34,11 +34,21 @@ fn main() {
 
     #[cfg(feature = "static")]
     {
-        let path = cmake::Config::new("vendor/slang")
-            .define("SLANG_LIB_TYPE", "STATIC")
-            .build();
+        let mut cmake_config = cmake::Config::new("vendor/slang");
+        cmake_config
+            // The default 'install' target has way more stuff and is more
+            // fragile to build. Only build the slang lib to save time
+            // and increase chances of success.
+            .build_target("slang")
+            .define("SLANG_LIB_TYPE", "STATIC");
 
-        println!("cargo:rustc-link-lib=static={:?}", path.join("lib").join("slang.lib"));
+        let path = cmake_config.build();
+
+        let cmake_build_type = cmake_config.get_profile();
+        let lib_dir = path.join("build").join(cmake_build_type).join("lib");
+        let lib_dir = lib_dir.to_str().unwrap();
+        println!("cargo:rustc-link-search=native={lib_dir}");
+        println!("cargo:rustc-link-lib=static=slang");
     }
 
     #[cfg(not(feature = "static"))]
@@ -60,6 +70,4 @@ fn main() {
         #[cfg(target_os = "macos")]
         println!("cargo:rustc-link-lib=dylib=slang");
     }
-
-
 }
